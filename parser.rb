@@ -630,12 +630,12 @@ module Narcissus
             end
             if tt != CONSTS["GROUP"]
               n = operands.last
-              if n[1].type != CONSTS["COMMA"]
-                n2 = n[1]
-                n[1] = Node.new(t, CONSTS["LIST"])
-                n[1].push(n2)
+              if n.children[1].type != CONSTS["COMMA"]
+                n2 = n.children[1]
+                n.children[1] = Node.new(t, CONSTS["LIST"])
+                n.children[1].push(n2)
               else
-                n[1].type = CONSTS["LIST"]
+                n.children[1].type = CONSTS["LIST"]
               end
             end
             x.paren_level -= 1

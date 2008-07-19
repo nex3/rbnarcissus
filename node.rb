@@ -12,10 +12,7 @@ module Narcissus
     attr_accessor :children
 
     def initialize(t, type = nil)
-      @children = []
-
-      token = t.token
-      if token
+      if token = t.token
         if type != nil
           @type = type
         else
@@ -30,6 +27,7 @@ module Narcissus
         @lineno = t.lineno
       end
       @tokenizer = t
+      @children = []
       #for (var i = 2; i < arguments.length; i++)
       #this.push(arguments[i]);
     end
@@ -42,11 +40,11 @@ module Narcissus
     end
 
     def get_source
-      return @tokenizer.source.slice(@start, @end)
+      @tokenizer.source.slice(@start, @end)
     end
 
     def filename
-      return @tokenizer.filename
+      @tokenizer.filename
     end
   end
 end
