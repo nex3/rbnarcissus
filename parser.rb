@@ -1,5 +1,7 @@
 require 'enumerator'
 require 'data'
+require 'tokenizer'
+require 'node'
 
 class Narcissus
   class SyntaxError
@@ -353,6 +355,39 @@ class Narcissus
   end
 
 
+  def reduce(operators, operands, t)
+    n = operators.pop
+    op = n.type
+    arity = OP_ARITY[op]
+    if arity == -2
+      if operands.length >= 2
+        # Flatten left-associative trees.
+        left = operands[operands.length - 2]
+        
+        if left.type == op
+          right = operands.pop
+          left.push(right)
+          return left
+        end
+      end
+      arity = 2
+    end
+    
+    # Always use push to add operands to n, to update start and end.
+    a = operands.slice!(operands.length - arity, operands.length)
+
+    arity.times do |i|
+      n.push(a[i])
+    end
+    
+    # Include closing bracket or postfix operator in [start,end).
+    n.end = t.token.end if n.end < t.token.end
+    
+    operands.push(n)
+    return n
+  end
+
+
   def expression(t, x, stop = nil)
     operators = []
     operands = []
@@ -361,38 +396,6 @@ class Narcissus
     pl = x.paren_level
     hl = x.hook_level
     
-    def reduce(operators, operands, t)
-      n = operators.pop
-      op = n.type
-      arity = OP_ARITY[op]
-      if arity == -2
-        if operands.length >= 2
-          # Flatten left-associative trees.
-          left = operands[operands.length - 2]
-          
-          if left.type == op
-            right = operands.pop
-            left.push(right)
-            return left
-          end
-        end
-        arity = 2
-      end
-      
-      # Always use push to add operands to n, to update start and end.
-      a = operands.slice!(operands.length - arity, operands.length)
-
-      arity.times do |i|
-        n.push(a[i])
-      end
-      
-      # Include closing bracket or postfix operator in [start,end).
-      n.end = t.token.end if n.end < t.token.end
-      
-      operands.push(n)
-      return n
-    end
-
     gotoloopContinue = false
     until gotoloopContinue or (t.token and t.token.type == CONSTS["END"])
       gotoloopContinue = catch(:gotoloop) do
