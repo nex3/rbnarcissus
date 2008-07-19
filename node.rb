@@ -1,5 +1,5 @@
 module Narcissus
-  class Node < Array
+  class Node
 
     attr_accessor :type, :value, :lineno, :start, :end, :tokenizer, :initializer
     attr_accessor :name, :params, :fun_decls, :var_decls, :body, :function_form
@@ -9,7 +9,11 @@ module Narcissus
     attr_accessor :catch_clauses, :var_name, :guard, :block, :discriminant, :cases
     attr_accessor :default_index, :case_label, :statements, :statement
 
+    attr_accessor :children
+
     def initialize(t, type = nil)
+      @children = []
+
       token = t.token
       if token
         if type != nil
@@ -30,19 +34,14 @@ module Narcissus
       #this.push(arguments[i]);
     end
 
-    alias superPush push
     # Always use push to add operands to an expression, to update start and end.
     def push(kid)
-      if kid.start and @start
-        @start = kid.start if kid.start < @start
-      end
-      if kid.end and @end
-        @end = kid.end if @end < kid.end
-      end
-      return superPush(kid)
+      @start = kid.start if kid.start && @start && kid.start < @start
+      @end = kid.end if kid.end && @end && @end < kid.end
+      @children.push(kid)
     end
 
-    def getSource
+    def get_source
       return @tokenizer.source.slice(@start, @end)
     end
 
