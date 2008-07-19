@@ -376,68 +376,6 @@ class Narcissus
       return superPush(kid)
     end
 
-    # 	def to_s
-    # 		a = []
-    # 		
-    # 		#for (var i in this) {
-    # 		#	if (this.hasOwnProperty(i) && i != 'type')
-    # 		#		a.push({id: i, value: this[i]});
-    # 		#}
-    # 		#a.sort(function (a,b) { return (a.id < b.id) ? -1 : 1; });
-    # 		iNDENTATION = "    "
-    # 		n = (Node.indentLevel += 1)
-    # 		t = TOKENS[@type]
-    # 		s = "{\n" + iNDENTATION.repeat(n) +
-    # 				"type: " + (/^\W/.test(t) and opTypeNames[t] or t.upcase)
-    # 		#for (i = 0; i < a.length; i++)
-    # 		#	s += ",\n" + INDENTATION.repeat(n) + a[i].id + ": " + a[i].value
-    # 			s += ",\n" + iNDENTATION.repeat(n) + @value + ": " + a[i].value
-    # 		n = (Node.indentLevel -= 1)
-    # 		s += "\n" + iNDENTATION.repeat(n) + "}"
-    # 		return s
-    # 	end
-
-    def to_s
-      
-      attrs = [@value,
-        @lineno, @start, @end,
-        @name, @params, @fun_decls, @var_decls, @body, @function_form,
-        @assign_op, @expression, @condition, @then_part, @else_part]
-      
-      #puts TOKENS[@condition.type] if @condition != nil
-      
-      #if /\A[a-z]/ =~ TOKENS[@type] # identifier
-      #	print @tokenizer.source.slice($cursor, @start - $cursor) if $cursor < @start
-      #	print '<span class="identifier">'
-      #	print @tokenizer.source.slice(@start, TOKENS[@type].length)
-      #	print '</span>'
-      #	$cursor = @start + TOKENS[@type].length
-      #end
-      
-      #puts (" " * $ind) + "{" + TOKENS[@type] + "\n" if /\A[a-z]/ =~ TOKENS[@type]
-      #puts (" " * $ind) + " " + @start.to_s + "-" + @end.to_s + "\n"
-      $ind += 1
-      #puts @value
-      self.length.times do |i|
-        self[i].to_s if self[i] != self and self[i].class == Node
-      end
-      attrs.length.times do |attr|
-        if TOKENS[@type] == "if"
-          #	puts TOKENS[attrs[attr].type] if attrs[attr].class == Node and attrs[attr] !== self
-        end
-        attrs[attr].to_s if attrs[attr].class == Node #and attrs[attr] != self
-        #puts (" " * $ind).to_s + attrs[attr].to_s if attrs[attr].to_s != nil and attrs[attr] != self
-      end
-      $ind -= 1
-      #puts "\n}\n"
-      
-      if $ind == 0
-        print @tokenizer.source.slice($cursor, @tokenizer.source.length - $cursor)
-      end
-      
-      return ""
-    end
-
     def getSource
       return @tokenizer.source.slice(@start, @end)
     end
@@ -446,10 +384,6 @@ class Narcissus
       return @tokenizer.filename
     end
   end
-
-  $cursor = 0
-
-  $ind = 0
 
   def script(t, x)
     n = statements(t, x)
