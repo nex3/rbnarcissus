@@ -150,17 +150,17 @@ class Narcissus
 
   class Tokenizer
 
-    attr_accessor :cursor, :source, :tokens, :tokenIndex, :lookahead
-    attr_accessor :scanNewlines, :scanOperand, :filename, :lineno
+    attr_accessor :cursor, :source, :tokens, :token_index, :lookahead
+    attr_accessor :scan_newlines, :scan_operand, :filename, :lineno
 
-    def initialize (source, filename, line)
+    def initialize(source, filename, line)
       @cursor = 0
       @source = source.to_s
       @tokens = []
-      @tokenIndex = 0
+      @token_index = 0
       @lookahead = 0
-      @scanNewlines = false
-      @scanOperand = true
+      @scan_newlines = false
+      @scan_operand = true
       @filename = filename or ""
       @lineno = line or 1
     end
@@ -174,25 +174,25 @@ class Narcissus
     end
 
     def token
-      return @tokens[@tokenIndex];
+      return @tokens[@token_index];
     end
     
-    def match (tt)
+    def match(tt)
       got = self.get
       #puts got
       #puts tt
       return got == tt || self.unget
     end
     
-    def mustMatch (tt)
+    def must_match(tt)
       raise SyntaxError.new("Missing " + TOKENS[tt].downcase, self) unless self.match(tt)
       return self.token
     end
 
     def peek
       if @lookahead > 0
-        #tt = @tokens[(@tokenIndex + @lookahead)].type
-        tt = @tokens[(@tokenIndex + @lookahead) & 3].type
+        #tt = @tokens[(@token_index + @lookahead)].type
+        tt = @tokens[(@token_index + @lookahead) & 3].type
       else
         tt = self.get
         self.unget
@@ -200,25 +200,25 @@ class Narcissus
       return tt
     end
     
-    def peekOnSameLine
-      @scanNewlines = true;
+    def peek_on_same_line
+      @scan_newlines = true;
       tt = self.peek
-      @scanNewlines = false;
+      @scan_newlines = false;
       return tt
     end
 
     def get
       while @lookahead > 0
         @lookahead -= 1
-        @tokenIndex = (@tokenIndex + 1) & 3
-        token = @tokens[@tokenIndex]
-        return token.type if token.type != CONSTS["NEWLINE"] || @scanNewlines
+        @token_index = (@token_index + 1) & 3
+        token = @tokens[@token_index]
+        return token.type if token.type != CONSTS["NEWLINE"] || @scan_newlines
       end
       
       while true
         input = self.input
 
-        if @scanNewlines
+        if @scan_newlines
           match = /\A[ \t]+/.match(input)
         else
           match = /\A\s+/.match(input)
@@ -240,9 +240,9 @@ class Narcissus
       
       #puts input
       
-      @tokenIndex = (@tokenIndex + 1) & 3
-      token = @tokens[@tokenIndex]
-      (@tokens[@tokenIndex] = token = Token.new) unless token
+      @token_index = (@token_index + 1) & 3
+      token = @tokens[@token_index]
+      (@tokens[@token_index] = token = Token.new) unless token
       if input.length == 0
         #puts "end!!!"
         return (token.type = CONSTS["END"])
@@ -262,22 +262,22 @@ class Narcissus
       elsif (match = /\A"(?:\\.|[^"])*"|\A'(?:[^']|\\.)*'/.match(input))
         token.type = CONSTS["STRING"]
         token.value = match[0].to_s
-      elsif @scanOperand and (match = /\A\/((?:\\.|[^\/])+)\/([gi]*)/.match(input))
+      elsif @scan_operand and (match = /\A\/((?:\\.|[^\/])+)\/([gi]*)/.match(input))
         token.type = CONSTS["REGEXP"]
         token.value = Regexp.new(match[1], match[2])
       elsif (match = OP_REGEXP.match(input))
         op = match[0]
         if ASSIGN_OPS_HASH[op] && input[op.length, 1] == '='
           token.type = CONSTS["ASSIGN"]
-          token.assignOp = CONSTS[OPERATOR_TYPE_NAMES[op]]
+          token.assign_op = CONSTS[OPERATOR_TYPE_NAMES[op]]
           cursor_advance = 1 # length of '='
         else
           #puts CONSTS[OPERATOR_TYPE_NAMES[op]].to_s + " " + OPERATOR_TYPE_NAMES[op] + " " + op
           token.type = CONSTS[OPERATOR_TYPE_NAMES[op]]
-          if @scanOperand and (token.type == CONSTS["PLUS"] || token.type == CONSTS["MINUS"])
+          if @scan_operand and (token.type == CONSTS["PLUS"] || token.type == CONSTS["MINUS"])
             token.type += CONSTS["UNARY_PLUS"] - CONSTS["PLUS"]
           end
-          token.assignOp = nil
+          token.assign_op = nil
         end
         token.value = op
       else
@@ -293,18 +293,18 @@ class Narcissus
     end
 
     def unget
-      #puts "start: lookahead: " + @lookahead.to_s + " tokenIndex: " + @tokenIndex.to_s
+      #puts "start: lookahead: " + @lookahead.to_s + " token_index: " + @token_index.to_s
       @lookahead += 1
       raise SyntaxError.new("PANIC: too much lookahead!", self) if @lookahead == 4
-      @tokenIndex = (@tokenIndex - 1) & 3
-      #puts "end:   lookahead: " + @lookahead.to_s + " tokenIndex: " + @tokenIndex.to_s
+      @token_index = (@token_index - 1) & 3
+      #puts "end:   lookahead: " + @lookahead.to_s + " token_index: " + @token_index.to_s
       return nil
     end
 
   end
 
   class SyntaxError
-    def initialize (msg, tokenizer)
+    def initialize(msg, tokenizer)
       puts msg
       puts "on line " + tokenizer.lineno.to_s
     end
@@ -312,23 +312,23 @@ class Narcissus
 
 
   class Token
-    attr_accessor :type, :value, :start, :end, :lineno, :assignOp
+    attr_accessor :type, :value, :start, :end, :lineno, :assign_op
   end
 
 
   class CompilerContext
-    attr_accessor :inFunction, :stmtStack, :funDecls, :varDecls
-    attr_accessor :bracketLevel, :curlyLevel, :parenLevel, :hookLevel
-    attr_accessor :ecmaStrictMode, :inForLoopInit
+    attr_accessor :in_function, :stmt_stack, :fun_decls, :var_decls
+    attr_accessor :bracket_level, :curly_level, :paren_level, :hook_level
+    attr_accessor :ecma_strict_mode, :in_for_loop_init
 
-    def initialize (inFunction)
-      @inFunction = inFunction
-      @stmtStack = []
-      @funDecls = []
-      @varDecls = []
+    def initialize(in_function)
+      @in_function = in_function
+      @stmt_stack = []
+      @fun_decls = []
+      @var_decls = []
       
-      @bracketLevel = @curlyLevel = @parenLevel = @hookLevel = 0
-      @ecmaStrictMode = @inForLoopInit = false
+      @bracket_level = @curly_level = @paren_level = @hook_level = 0
+      @ecma_strict_mode = @in_for_loop_init = false
     end
   end
 
@@ -336,14 +336,14 @@ class Narcissus
   class Node < Array
 
     attr_accessor :type, :value, :lineno, :start, :end, :tokenizer, :initializer
-    attr_accessor :name, :params, :funDecls, :varDecls, :body, :functionForm
-    attr_accessor :assignOp, :expression, :condition, :thenPart, :elsePart
-    attr_accessor :readOnly, :isLoop, :setup, :postfix, :update, :exception
-    attr_accessor :object, :iterator, :varDecl, :label, :target, :tryBlock
-    attr_accessor :catchClauses, :varName, :guard, :block, :discriminant, :cases
-    attr_accessor :defaultIndex, :caseLabel, :statements, :statement
+    attr_accessor :name, :params, :fun_decls, :var_decls, :body, :function_form
+    attr_accessor :assign_op, :expression, :condition, :then_part, :else_part
+    attr_accessor :read_only, :is_loop, :setup, :postfix, :update, :exception
+    attr_accessor :object, :iterator, :var_decl, :label, :target, :try_block
+    attr_accessor :catch_clauses, :var_name, :guard, :block, :discriminant, :cases
+    attr_accessor :default_index, :case_label, :statements, :statement
 
-    def initialize (t, type = nil)
+    def initialize(t, type = nil)
       token = t.token
       if token
         if type != nil
@@ -366,7 +366,7 @@ class Narcissus
 
     alias superPush push
     # Always use push to add operands to an expression, to update start and end.
-    def push (kid)
+    def push(kid)
       if kid.start and @start
         @start = kid.start if kid.start < @start
       end
@@ -401,8 +401,8 @@ class Narcissus
       
       attrs = [@value,
         @lineno, @start, @end,
-        @name, @params, @funDecls, @varDecls, @body, @functionForm,
-        @assignOp, @expression, @condition, @thenPart, @elsePart]
+        @name, @params, @fun_decls, @var_decls, @body, @function_form,
+        @assign_op, @expression, @condition, @then_part, @else_part]
       
       #puts TOKENS[@condition.type] if @condition != nil
       
@@ -451,39 +451,39 @@ class Narcissus
 
   $ind = 0
 
-  def Script (t, x)
-    n = Statements(t, x)
+  def script(t, x)
+    n = statements(t, x)
     n.type = CONSTS["SCRIPT"]
-    n.funDecls = x.funDecls
-    n.varDecls = x.varDecls
+    n.fun_decls = x.fun_decls
+    n.var_decls = x.var_decls
     return n
   end
 
 
   # Statement stack and nested statement handler.
-  # nb. Narcissus allowed a function reference, here we use Statement explicitly
-  def nest (t, x, node, end_ = nil)
-    x.stmtStack.push(node)
-    n = Statement(t, x)
-    x.stmtStack.pop
-    end_ and t.mustMatch(end_)
+  # nb. Narcissus allowed a function reference, here we use statement explicitly
+  def nest(t, x, node, end_ = nil)
+    x.stmt_stack.push(node)
+    n = statement(t, x)
+    x.stmt_stack.pop
+    end_ and t.must_match(end_)
     return n
   end
 
 
-  def Statements (t, x)
+  def statements(t, x)
     n = Node.new(t, CONSTS["BLOCK"])
-    x.stmtStack.push(n)
-    n.push(Statement(t, x)) while !t.done and t.peek != CONSTS["RIGHT_CURLY"]
-    x.stmtStack.pop
+    x.stmt_stack.push(n)
+    n.push(statement(t, x)) while !t.done and t.peek != CONSTS["RIGHT_CURLY"]
+    x.stmt_stack.pop
     return n
   end
 
 
-  def Block (t, x)
-    t.mustMatch(CONSTS["LEFT_CURLY"])
-    n = Statements(t, x)
-    t.mustMatch(CONSTS["RIGHT_CURLY"])
+  def block(t, x)
+    t.must_match(CONSTS["LEFT_CURLY"])
+    n = statements(t, x)
+    t.must_match(CONSTS["RIGHT_CURLY"])
     return n
   end
 
@@ -492,78 +492,78 @@ class Narcissus
   EXPRESSED_FORM = 1
   STATEMENT_FORM = 2
 
-  def Statement (t, x)
+  def statement(t, x)
     tt = t.get
 
     # Cases for statements ending in a right curly return early, avoiding the
     # common semicolon insertion magic after this switch.
     case tt
     when CONSTS["FUNCTION"]
-      return FunctionDefinition(t, x, true, 
-        (x.stmtStack.length > 1) && STATEMENT_FORM || DECLARED_FORM)
+      return function_definition(t, x, true, 
+        (x.stmt_stack.length > 1) && STATEMENT_FORM || DECLARED_FORM)
 
     when CONSTS["LEFT_CURLY"]
-      n = Statements(t, x)
-      t.mustMatch(CONSTS["RIGHT_CURLY"])
+      n = statements(t, x)
+      t.must_match(CONSTS["RIGHT_CURLY"])
       return n
       
     when CONSTS["IF"]
       n = Node.new(t)
-      n.condition = ParenExpression(t, x)
-      x.stmtStack.push(n)
-      n.thenPart = Statement(t, x)
-      n.elsePart = t.match(CONSTS["ELSE"]) ? Statement(t, x) : nil
-      x.stmtStack.pop()
+      n.condition = paren_expression(t, x)
+      x.stmt_stack.push(n)
+      n.then_part = statement(t, x)
+      n.else_part = t.match(CONSTS["ELSE"]) ? statement(t, x) : nil
+      x.stmt_stack.pop()
       return n
 
     when CONSTS["SWITCH"]
       n = Node.new(t)
-      t.mustMatch(CONSTS["LEFT_PAREN"])
-      n.discriminant = Expression(t, x)
-      t.mustMatch(CONSTS["RIGHT_PAREN"])
+      t.must_match(CONSTS["LEFT_PAREN"])
+      n.discriminant = expression(t, x)
+      t.must_match(CONSTS["RIGHT_PAREN"])
       n.cases = []
-      n.defaultIndex = -1
-      x.stmtStack.push(n)
-      t.mustMatch(CONSTS["LEFT_CURLY"])
+      n.default_index = -1
+      x.stmt_stack.push(n)
+      t.must_match(CONSTS["LEFT_CURLY"])
       while (tt = t.get) != CONSTS["RIGHT_CURLY"]
         case tt
         when CONSTS["DEFAULT"], CONSTS["CASE"]
-          if tt == CONSTS["DEFAULT"] and n.defaultIndex >= 0
+          if tt == CONSTS["DEFAULT"] and n.default_index >= 0
             raise SyntaxError.new("More than one switch default", t)
           end
           n2 = Node.new(t)
           if tt == CONSTS["DEFAULT"]
-            n.defaultIndex = n.cases.length
+            n.default_index = n.cases.length
           else
-            n2.caseLabel = Expression(t, x, CONSTS["COLON"])
+            n2.case_label = expression(t, x, CONSTS["COLON"])
           end
           
         else
           raise SyntaxError.new("Invalid switch case", t)
         end
-        t.mustMatch(CONSTS["COLON"])
+        t.must_match(CONSTS["COLON"])
         n2.statements = Node.new(t, CONSTS["BLOCK"])
         while (tt = t.peek) != CONSTS["CASE"] and tt != CONSTS["DEFAULT"] and tt != CONSTS["RIGHT_CURLY"]
-          n2.statements.push(Statement(t, x))
+          n2.statements.push(statement(t, x))
         end
         n.cases.push(n2)
       end
-      x.stmtStack.pop
+      x.stmt_stack.pop
       return n
       
     when CONSTS["FOR"]
       n = Node.new(t)
-      n.isLoop = true
-      t.mustMatch(CONSTS["LEFT_PAREN"])
+      n.is_loop = true
+      t.must_match(CONSTS["LEFT_PAREN"])
       if (tt = t.peek) != CONSTS["SEMICOLON"]
-        x.inForLoopInit = true
+        x.in_for_loop_init = true
         if tt == CONSTS["VAR"] or tt == CONSTS["CONST"]
           t.get
-          n2 = Variables(t, x)
+          n2 = variables(t, x)
         else
-          n2 = Expression(t, x)
+          n2 = expression(t, x)
         end
-        x.inForLoopInit = false
+        x.in_for_loop_init = false
       end
       if n2 and t.match(CONSTS["IN"])
         n.type = CONSTS["FOR_IN"]
@@ -573,36 +573,36 @@ class Narcissus
           end
           # NB: n2[0].type == IDENTIFIER and n2[0].value == n2[0].name.
           n.iterator = n2[0]
-          n.varDecl = n2
+          n.var_decl = n2
         else
           n.iterator = n2
-          n.varDecl = nil
+          n.var_decl = nil
         end
-        n.object = Expression(t, x)
+        n.object = expression(t, x)
       else
         n.setup = n2 or nil
-        t.mustMatch(CONSTS["SEMICOLON"])
-        n.condition = (t.peek == CONSTS["SEMICOLON"]) ? nil : Expression(t, x)
-        t.mustMatch(CONSTS["SEMICOLON"])
-        n.update = (t.peek == CONSTS["RIGHT_PAREN"]) ? nil : Expression(t, x)
+        t.must_match(CONSTS["SEMICOLON"])
+        n.condition = (t.peek == CONSTS["SEMICOLON"]) ? nil : expression(t, x)
+        t.must_match(CONSTS["SEMICOLON"])
+        n.update = (t.peek == CONSTS["RIGHT_PAREN"]) ? nil : expression(t, x)
       end
-      t.mustMatch(CONSTS["RIGHT_PAREN"])
+      t.must_match(CONSTS["RIGHT_PAREN"])
       n.body = nest(t, x, n)
       return n
       
     when CONSTS["WHILE"]
       n = Node.new(t)
-      n.isLoop = true
-      n.condition = ParenExpression(t, x)
+      n.is_loop = true
+      n.condition = paren_expression(t, x)
       n.body = nest(t, x, n)
       return n
       
     when CONSTS["DO"]
       n = Node.new(t)
-      n.isLoop = true
+      n.is_loop = true
       n.body = nest(t, x, n, CONSTS["WHILE"])
-      n.condition = ParenExpression(t, x)
-      if !x.ecmaStrictMode
+      n.condition = paren_expression(t, x)
+      if !x.ecma_strict_mode
         # <script language="JavaScript"> (without version hints) may need
         # automatic semicolon insertion without a newline after do-while.
         # See http://bugzilla.mozilla.org/show_bug.cgi?id=238945.
@@ -612,11 +612,11 @@ class Narcissus
       
     when CONSTS["BREAK"], CONSTS["CONTINUE"]
       n = Node.new(t)
-      if t.peekOnSameLine == CONSTS["IDENTIFIER"]
+      if t.peek_on_same_line == CONSTS["IDENTIFIER"]
         t.get
         n.label = t.token.value
       end
-      ss = x.stmtStack
+      ss = x.stmt_stack
       i = ss.length
       label = n.label
       if label
@@ -628,33 +628,33 @@ class Narcissus
         begin
           i -= 1
           raise SyntaxError.new("Invalid " + ((tt == CONSTS["BREAK"]) and "break" or "continue"), t) if i < 0
-        end while !ss[i].isLoop and (tt != CONSTS["BREAK"] or ss[i].type != CONSTS["SWITCH"])
+        end while !ss[i].is_loop and (tt != CONSTS["BREAK"] or ss[i].type != CONSTS["SWITCH"])
       end
       n.target = ss[i]
       
     when CONSTS["TRY"]
       n = Node.new(t)
-      n.tryBlock = Block(t, x)
-      n.catchClauses = []
+      n.try_block = block(t, x)
+      n.catch_clauses = []
       while t.match(CONSTS["CATCH"])
         n2 = Node.new(t)
-        t.mustMatch(CONSTS["LEFT_PAREN"])
-        n2.varName = t.mustMatch(CONSTS["IDENTIFIER"]).value
+        t.must_match(CONSTS["LEFT_PAREN"])
+        n2.var_name = t.must_match(CONSTS["IDENTIFIER"]).value
         if t.match(CONSTS["IF"])
-          raise SyntaxError.new("Illegal catch guard", t) if x.ecmaStrictMode
-          if n.catchClauses.length and !n.catchClauses.last.guard
+          raise SyntaxError.new("Illegal catch guard", t) if x.ecma_strict_mode
+          if n.catch_clauses.length and !n.catch_clauses.last.guard
             raise SyntaxError.new("Guarded catch after unguarded", t)
           end
-          n2.guard = Expression(t, x)
+          n2.guard = expression(t, x)
         else
           n2.guard = nil
         end
-        t.mustMatch(CONSTS["RIGHT_PAREN"])
-        n2.block = Block(t, x)
-        n.catchClauses.push(n2)
+        t.must_match(CONSTS["RIGHT_PAREN"])
+        n2.block = block(t, x)
+        n.catch_clauses.push(n2)
       end
-      n.finallyBlock = Block(t, x) if t.match(CONSTS["FINALLY"])
-      if !n.catchClauses.length and !n.finallyBlock
+      n.finallyBlock = block(t, x) if t.match(CONSTS["FINALLY"])
+      if !n.catch_clauses.length and !n.finallyBlock
         raise SyntaxError.new("Invalid try statement", t)
       end
       return n
@@ -665,24 +665,24 @@ class Narcissus
       
     when CONSTS["THROW"]
       n = Node.new(t)
-      n.exception = Expression(t, x)
+      n.exception = expression(t, x)
       
     when CONSTS["RETURN"]
-      raise SyntaxError.new("Invalid return", t) unless x.inFunction
+      raise SyntaxError.new("Invalid return", t) unless x.in_function
       n = Node.new(t)
-      tt = t.peekOnSameLine
+      tt = t.peek_on_same_line
       if tt != CONSTS["END"] and tt != CONSTS["NEWLINE"] and tt != CONSTS["SEMICOLON"] and tt != CONSTS["RIGHT_CURLY"]
-        n.value = Expression(t, x)
+        n.value = expression(t, x)
       end
       
     when CONSTS["WITH"]
       n = Node.new(t)
-      n.object = ParenExpression(t, x)
+      n.object = paren_expression(t, x)
       n.body = nest(t, x, n)
       return n
       
     when CONSTS["VAR"], CONSTS["CONST"]
-      n = Variables(t, x)
+      n = variables(t, x)
       
     when CONSTS["DEBUGGER"]
       n = Node.new(t)
@@ -695,7 +695,7 @@ class Narcissus
     else
       if tt == CONSTS["IDENTIFIER"] and t.peek == CONSTS["COLON"]
         label = t.token.value
-        ss = x.stmtStack
+        ss = x.stmt_stack
         (ss.length - 1).times do |i|
           raise SyntaxError.new("Duplicate label", t) if ss[i].label == label
         end
@@ -708,12 +708,12 @@ class Narcissus
 
       t.unget
       n = Node.new(t, CONSTS["SEMICOLON"])
-      n.expression = Expression(t, x)
+      n.expression = expression(t, x)
       n.end = n.expression.end
     end
 
     if t.lineno == t.token.lineno
-      tt = t.peekOnSameLine
+      tt = t.peek_on_same_line
       if tt != CONSTS["END"] and tt != CONSTS["NEWLINE"] and tt != CONSTS["SEMICOLON"] and tt != CONSTS["RIGHT_CURLY"]
         raise SyntaxError.new("Missing ; before statement", t)
       end
@@ -723,7 +723,7 @@ class Narcissus
   end
 
 
-  def FunctionDefinition (t, x, requireName, functionForm)
+  def function_definition (t, x, requireName, function_form)
     f = Node.new(t)
     if f.type != CONSTS["FUNCTION"]
       f.type = (f.value == "get") and CONSTS["GETTER"] or CONSTS["SETTER"]
@@ -733,59 +733,59 @@ class Narcissus
     elsif requireName
       raise SyntaxError.new("Missing function identifier", t)
     end
-    t.mustMatch(CONSTS["LEFT_PAREN"])
+    t.must_match(CONSTS["LEFT_PAREN"])
     f.params = []
     while (tt = t.get) != CONSTS["RIGHT_PAREN"]
       raise SyntaxError.new("Missing formal parameter", t) unless tt == CONSTS["IDENTIFIER"]
       f.params.push(t.token.value)
-      t.mustMatch(CONSTS["COMMA"]) unless t.peek == CONSTS["RIGHT_PAREN"]
+      t.must_match(CONSTS["COMMA"]) unless t.peek == CONSTS["RIGHT_PAREN"]
     end
     
-    t.mustMatch(CONSTS["LEFT_CURLY"])
+    t.must_match(CONSTS["LEFT_CURLY"])
     x2 = CompilerContext.new(true)
-    f.body = Script(t, x2)
-    t.mustMatch(CONSTS["RIGHT_CURLY"])
+    f.body = script(t, x2)
+    t.must_match(CONSTS["RIGHT_CURLY"])
     f.end = t.token.end
-    f.functionForm = functionForm
-    x.funDecls.push(f) if functionForm == CONSTS["DECLARED_FORM"]
+    f.function_form = function_form
+    x.fun_decls.push(f) if function_form == CONSTS["DECLARED_FORM"]
     return f
   end
 
 
-  def Variables (t, x)
+  def variables(t, x)
     n = Node.new(t)
 
     begin
-      t.mustMatch(CONSTS["IDENTIFIER"])
+      t.must_match(CONSTS["IDENTIFIER"])
       n2 = Node.new(t)
       n2.name = n2.value
       if t.match(CONSTS["ASSIGN"])
-        raise SyntaxError.new("Invalid variable initialization", t) if t.token.assignOp
-        n2.initializer = Expression(t, x, CONSTS["COMMA"])
+        raise SyntaxError.new("Invalid variable initialization", t) if t.token.assign_op
+        n2.initializer = expression(t, x, CONSTS["COMMA"])
       end
-      n2.readOnly = (n.type == CONSTS["CONST"])
+      n2.read_only = (n.type == CONSTS["CONST"])
       n.push(n2)
-      x.varDecls.push(n2)
+      x.var_decls.push(n2)
     end while t.match(CONSTS["COMMA"])
     return n
   end
 
 
-  def ParenExpression (t, x)
-    t.mustMatch(CONSTS["LEFT_PAREN"])
-    n = Expression(t, x)
-    t.mustMatch(CONSTS["RIGHT_PAREN"])
+  def paren_expression (t, x)
+    t.must_match(CONSTS["LEFT_PAREN"])
+    n = expression(t, x)
+    t.must_match(CONSTS["RIGHT_PAREN"])
     return n
   end
 
 
-  def Expression(t, x, stop = nil)
+  def expression(t, x, stop = nil)
     operators = []
     operands = []
-    bl = x.bracketLevel
-    cl = x.curlyLevel
-    pl = x.parenLevel
-    hl = x.hookLevel
+    bl = x.bracket_level
+    cl = x.curly_level
+    pl = x.paren_level
+    hl = x.hook_level
     
     def reduce(operators, operands, t)
       n = operators.pop
@@ -826,17 +826,17 @@ class Narcissus
         while (tt = t.get) != CONSTS["END"]
           # Stop only if tt matches the optional stop parameter, and that
           # token is not quoted by some kind of bracket.
-          if tt == stop and x.bracketLevel == bl and x.curlyLevel == cl and x.parenLevel == pl and x.hookLevel == hl
+          if tt == stop and x.bracket_level == bl and x.curly_level == cl and x.paren_level == pl and x.hook_level == hl
             throw :gotoloop, true
           end
           
           case tt
           when CONSTS["SEMICOLON"]
-            # NB: cannot be empty, Statement handled that.
+            # NB: cannot be empty, statement handled that.
             throw :gotoloop, true;
             
           when CONSTS["ASSIGN"], CONSTS["HOOK"], CONSTS["COLON"]
-            if t.scanOperand
+            if t.scan_operand
               throw :gotoloop, true
             end
             
@@ -848,16 +848,16 @@ class Narcissus
               n = operators.last
               raise SyntaxError.new("Invalid label", t) if n.type != CONSTS["HOOK"]
               n.type = CONSTS["CONDITIONAL"]
-              x.hookLevel -= 1
+              x.hook_level -= 1
             else
               operators.push(Node.new(t))
               if tt == CONSTS["ASSIGN"]
-                operands.last.assignOp = t.token.assignOp
+                operands.last.assign_op = t.token.assign_op
               else
-                x.hookLevel += 1 # tt == HOOK
+                x.hook_level += 1 # tt == HOOK
               end
             end
-            t.scanOperand = true
+            t.scan_operand = true
             
           when CONSTS["COMMA"],
             # Treat comma as left-associative so reduce can fold left-heavy
@@ -872,38 +872,38 @@ class Narcissus
             # An in operator should not be parsed if we're parsing the head of
             # a for (...) loop, unless it is in the then part of a conditional
             # expression, or parenthesized somehow.
-            if tt == CONSTS["IN"] and x.inForLoopInit and x.hookLevel == 0 and x.bracketLevel == 0 and x.curlyLevel == 0 and x.parenLevel == 0
+            if tt == CONSTS["IN"] and x.in_for_loop_init and x.hook_level == 0 and x.bracket_level == 0 and x.curly_level == 0 and x.paren_level == 0
               throw :gotoloop, true
             end
             
-            if t.scanOperand
+            if t.scan_operand
               throw :gotoloop, true
             end
 
             reduce(operators, operands, t) while operators.length > 0 && OP_PRECEDENCE[operators.last.type] && OP_PRECEDENCE[operators.last.type] >= OP_PRECEDENCE[tt]
 
             if tt == CONSTS["DOT"]
-              t.mustMatch(CONSTS["IDENTIFIER"])
+              t.must_match(CONSTS["IDENTIFIER"])
               node = Node.new(t, CONSTS["DOT"])
               node.push(operands.pop)
               node.push(Node.new(t))
               operands.push(node)
             else
               operators.push(Node.new(t))
-              t.scanOperand = true
+              t.scan_operand = true
             end
             
           when CONSTS["DELETE"], CONSTS["VOID"], CONSTS["TYPEOF"], CONSTS["NOT"],
             CONSTS["BITWISE_NOT"], CONSTS["UNARY_PLUS"], CONSTS["UNARY_MINUS"],
             CONSTS["NEW"]
 
-            if !t.scanOperand
+            if !t.scan_operand
               throw :gotoloop, true
             end
             operators.push(Node.new(t))
             
           when CONSTS["INCREMENT"], CONSTS["DECREMENT"]
-            if t.scanOperand
+            if t.scan_operand
               operators.push(Node.new(t)) # prefix increment or decrement
             else
               # Use >, not >=, so postfix has higher precedence than prefix.
@@ -915,24 +915,24 @@ class Narcissus
             end
             
           when CONSTS["FUNCTION"]
-            if !t.scanOperand
+            if !t.scan_operand
               throw :gotoloop, true
             end
-            operands.push(FunctionDefinition(t, x, false, CONSTS["EXPRESSED_FORM"]))
-            t.scanOperand = false
+            operands.push(function_definition(t, x, false, CONSTS["EXPRESSED_FORM"]))
+            t.scan_operand = false
             
           when CONSTS["NULL"], CONSTS["THIS"], CONSTS["TRUE"], CONSTS["FALSE"],
             CONSTS["IDENTIFIER"], CONSTS["NUMBER"], CONSTS["STRING"],
             CONSTS["REGEXP"]
 
-            if !t.scanOperand
+            if !t.scan_operand
               throw :gotoloop, true
             end
             operands.push(Node.new(t))
-            t.scanOperand = false
+            t.scan_operand = false
             
           when CONSTS["LEFT_BRACKET"]
-            if t.scanOperand
+            if t.scan_operand
               # Array initialiser.  Parse using recursive descent, as the
               # sub-grammar here is not an operator grammar.
               n = Node.new(t, CONSTS["ARRAY_INIT"])
@@ -942,35 +942,35 @@ class Narcissus
                   n.push(nil)
                   next
                 end
-                n.push(Expression(t, x, CONSTS["COMMA"]))
+                n.push(expression(t, x, CONSTS["COMMA"]))
                 break if !t.match(CONSTS["COMMA"])
               end
-              t.mustMatch(CONSTS["RIGHT_BRACKET"])
+              t.must_match(CONSTS["RIGHT_BRACKET"])
               operands.push(n)
-              t.scanOperand = false
+              t.scan_operand = false
             else
               # Property indexing operator.
               operators.push(Node.new(t, CONSTS["INDEX"]))
-              t.scanOperand = true
-              x.bracketLevel += 1
+              t.scan_operand = true
+              x.bracket_level += 1
             end
             
           when CONSTS["RIGHT_BRACKET"]
-            if t.scanOperand or x.bracketLevel == bl
+            if t.scan_operand or x.bracket_level == bl
               throw :gotoloop, true
             end
             while reduce(operators, operands, t).type != CONSTS["INDEX"]
               nil
             end
-            x.bracketLevel -= 1
+            x.bracket_level -= 1
             
           when CONSTS["LEFT_CURLY"]
-            if !t.scanOperand
+            if !t.scan_operand
               throw :gotoloop, true
             end
             # Object initialiser.  As for array initialisers (see above),
             # parse using recursive descent.
-            x.curlyLevel += 1
+            x.curly_level += 1
             n = Node.new(t, CONSTS["OBJECT_INIT"])
 
             catch(:gotoobject_init) do
@@ -979,48 +979,48 @@ class Narcissus
                 begin
                   tt = t.get
                   if (t.token.value == "get" or t.token.value == "set") and t.peek == CONSTS["IDENTIFIER"]
-                    raise SyntaxError.new("Illegal property accessor", t) if x.ecmaStrictMode
-                    n.push(FunctionDefinition(t, x, true, CONSTS["EXPRESSED_FORM"]))
+                    raise SyntaxError.new("Illegal property accessor", t) if x.ecma_strict_mode
+                    n.push(function_definition(t, x, true, CONSTS["EXPRESSED_FORM"]))
                   else
                     case tt
                     when CONSTS["IDENTIFIER"], CONSTS["NUMBER"], CONSTS["STRING"]
                       id = Node.new(t)
                       
                     when CONSTS["RIGHT_CURLY"]
-                      raise SyntaxError.new("Illegal trailing ,", t) if x.ecmaStrictMode
+                      raise SyntaxError.new("Illegal trailing ,", t) if x.ecma_strict_mode
                       throw :gotoobject_init
                       
                     else
                       raise SyntaxError.new("Invalid property name", t)
                     end
-                    t.mustMatch(CONSTS["COLON"])
+                    t.must_match(CONSTS["COLON"])
                     n2 = Node.new(t, CONSTS["PROPERTY_INIT"])
                     n2.push(id)
-                    n2.push(Expression(t, x, CONSTS["COMMA"]))
+                    n2.push(expression(t, x, CONSTS["COMMA"]))
                     n.push(n2)
                   end
                 end while t.match(CONSTS["COMMA"])
-                t.mustMatch(CONSTS["RIGHT_CURLY"])
+                t.must_match(CONSTS["RIGHT_CURLY"])
               end
               operands.push(n)
-              t.scanOperand = false
-              x.curlyLevel -= 1
+              t.scan_operand = false
+              x.curly_level -= 1
             end
 
           when CONSTS["RIGHT_CURLY"]
-            raise SyntaxError.new("PANIC: right curly botch", t) if !t.scanOperand and x.curlyLevel != cl
+            raise SyntaxError.new("PANIC: right curly botch", t) if !t.scan_operand and x.curly_level != cl
             throw :gotoloop, true
             
           when CONSTS["LEFT_PAREN"]
-            if t.scanOperand
+            if t.scan_operand
               operators.push(Node.new(t, CONSTS["GROUP"]))
             else
               reduce(operators, operands, t) while operators.length > 0 && OP_PRECEDENCE[operators.last.type] && OP_PRECEDENCE[operators.last.type] > OP_PRECEDENCE[CONSTS["NEW"]]
               # Handle () now, to regularize the n-ary case for n > 0.
-              # We must set scanOperand in case there are arguments and
+              # We must set scan_operand in case there are arguments and
               # the first one is a regexp or unary+/-.
               n = operators.last
-              t.scanOperand = true
+              t.scan_operand = true
               if t.match(CONSTS["RIGHT_PAREN"])
                 if n && n.type == CONSTS["NEW"]
                   operators.pop
@@ -1031,7 +1031,7 @@ class Narcissus
                   n.push(Node.new(t, CONSTS["LIST"]))
                 end
                 operands.push(n)
-                t.scanOperand = false
+                t.scan_operand = false
                 #puts "woah"
                 break
               end
@@ -1041,10 +1041,10 @@ class Narcissus
                 operators.push(Node.new(t, CONSTS["CALL"]))
               end
             end
-            x.parenLevel += 1
+            x.paren_level += 1
             
           when CONSTS["RIGHT_PAREN"]
-            if t.scanOperand or x.parenLevel == pl
+            if t.scan_operand or x.paren_level == pl
               throw :gotoloop, true
             end
             while (tt = reduce(operators, operands, t).type) != CONSTS["GROUP"] \
@@ -1061,11 +1061,11 @@ class Narcissus
                 n[1].type = CONSTS["LIST"]
               end
             end
-            x.parenLevel -= 1
+            x.paren_level -= 1
             
             # Automatic semicolon insertion means we may scan across a newline
             # and into the beginning of another statement.  If so, break out of
-            # the while loop and let the t.scanOperand logic handle errors.
+            # the while loop and let the t.scan_operand logic handle errors.
           else
             throw :gotoloop, true
           end
@@ -1074,20 +1074,20 @@ class Narcissus
       end
     end
 
-    raise SyntaxError.new("Missing : after ?", t) if x.hookLevel != hl
-    raise SyntaxError.new("Missing operand", t) if t.scanOperand
+    raise SyntaxError.new("Missing : after ?", t) if x.hook_level != hl
+    raise SyntaxError.new("Missing operand", t) if t.scan_operand
     
     # Resume default mode, scanning for operands, not operators.
-    t.scanOperand = true
+    t.scan_operand = true
     t.unget
     reduce(operators, operands, t) while operators.length > 0
     return operands.pop
   end
 
-  def parse (source, filename, line = 1)
+  def parse(source, filename, line = 1)
     t = Tokenizer.new(source, filename, line)
     x = CompilerContext.new(false)
-    n = Script(t, x)
+    n = script(t, x)
     raise SyntaxError.new("Syntax error", t) if !t.done
     return n
   end
