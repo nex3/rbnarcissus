@@ -1,308 +1,7 @@
 require 'enumerator'
+require 'data'
 
 class Narcissus
-  TOKENS = [
-    # End of source.
-    "END",
-    
-    # Operators and punctuators.  Some pair-wise order matters, e.g. (+, -)
-    # and (UNARY_PLUS, UNARY_MINUS).
-    "\n", ";", ",", "=", "?", ":", "CONDITIONAL", "||", "&&", "|", "^",
-    "&", "==", "!=", "===", "!==", "<", "<=", ">=", ">", "<<", ">>",
-    ">>>", "+", "-", "*", "/", "%", "!", "~", "UNARY_PLUS",
-    "UNARY_MINUS", "++", "--", ".", "[", "]", "{", "}", "(", ")",
-    
-    # Nonterminal tree node type codes.
-    "SCRIPT", "BLOCK", "LABEL", "FOR_IN", "CALL", "NEW_WITH_ARGS",
-    "INDEX", "ARRAY_INIT", "OBJECT_INIT", "PROPERTY_INIT", "GETTER",
-    "SETTER", "GROUP", "LIST",
-    
-    # Terminals.
-    "IDENTIFIER", "NUMBER", "STRING", "REGEXP",
-    
-    # Keywords.
-    "break", "case", "catch", "const", "continue", "debugger",
-    "default", "delete", "do", "else", "enum", "false", "finally",
-    "for", "function", "if", "in", "instanceof", "new", "null",
-    "return", "switch", "this", "throw", "true", "try", "typeof", "var",
-    "void", "while", "with",
-  ]
-
-  # Operator and punctuator mapping from token to tree node type name.
-  OPERATOR_TYPE_NAMES = {
-    "\n"  => "NEWLINE",
-    ';'   => "SEMICOLON",
-    ','   => "COMMA",
-    '?'   => "HOOK",
-    ':'   => "COLON",
-    '||'  => "OR",
-    '&&'  => "AND",
-    '|'   => "BITWISE_OR",
-    '^'   => "BITWISE_XOR",
-    '&'   => "BITWISE_AND",
-    '===' => "STRICT_EQ",
-    '=='  => "EQ",
-    '='   => "ASSIGN",
-    '!==' => "STRICT_NE",
-    '!='  => "NE",
-    '<<'  => "LSH",
-    '<='  => "LE",
-    '<'   => "LT",
-    '>>>' => "URSH",
-    '>>'  => "RSH",
-    '>='  => "GE",
-    '>'   => "GT",
-    '++'  => "INCREMENT",
-    '--'  => "DECREMENT",
-    '+'   => "PLUS",
-    '-'   => "MINUS",
-    '*'   => "MUL",
-    '/'   => "DIV",
-    '%'   => "MOD",
-    '!'   => "NOT",
-    '~'   => "BITWISE_NOT",
-    '.'   => "DOT",
-    '['   => "LEFT_BRACKET",
-    ']'   => "RIGHT_BRACKET",
-    '{'   => "LEFT_CURLY",
-    '}'   => "RIGHT_CURLY",
-    '('   => "LEFT_PAREN",
-    ')'   => "RIGHT_PAREN"
-  }
-
-  # Hash of keyword identifier to tokens index.
-  KEYWORDS = TOKENS.enum_with_index.
-    select {|t, i| /\A[a-z]/ =~ t}.
-    inject({}) {|m, (t, i)| m[t] = i; m}
-
-  # Define const END, etc., based on the token names.  Also map name to index.
-  CONSTS = TOKENS.enum_with_index.inject({}) do |m, (t, i)|
-    case t
-    when /\A[a-z]/; m[t.upcase] = i
-    when /\A\W/; m[OPERATOR_TYPE_NAMES[t]] = i
-    else; m[t] = i
-    end
-    m
-  end
-
-  # Map assignment operators to their indexes in the tokens array.
-  ASSIGN_OPS = ['|', '^', '&', '<<', '>>', '>>>', '+', '-', '*', '/', '%']
-  ASSIGN_OPS_HASH = ASSIGN_OPS.inject({}) {|m, t| m[t] = CONSTS[OPERATOR_TYPE_NAMES[t]]; m}
-
-  OP_PRECEDENCE = {
-    "SEMICOLON" => 0,
-    "COMMA" => 1,
-    "ASSIGN" => 2,
-    "HOOK" => 3, "COLON" => 3, "CONDITIONAL" => 3,
-    "OR" => 4,
-    "AND" => 5,
-    "BITWISE_OR" => 6,
-    "BITWISE_XOR" => 7,
-    "BITWISE_AND" => 8,
-    "EQ" => 9, "NE" => 9, "STRICT_EQ" => 9, "STRICT_NE" => 9,
-    "LT" => 10, "LE" => 10, "GE" => 10, "GT" => 10, "IN" => 10, "INSTANCEOF" => 10,
-    "LSH" => 11, "RSH" => 11, "URSH" => 11,
-    "PLUS" => 12, "MINUS" => 12,
-    "MUL" => 13, "DIV" => 13, "MOD" => 13,
-    "DELETE" => 14, "VOID" => 14, "TYPEOF" => 14, # PRE_INCREMENT: 14, PRE_DECREMENT: 14,
-    "NOT" => 14, "BITWISE_NOT" => 14, "UNARY_PLUS" => 14, "UNARY_MINUS" => 14,
-    "INCREMENT" => 15, "DECREMENT" => 15, # postfix
-    "NEW" => 16,
-    "DOT" => 17
-  }
-  # Map operator type code to precedence.
-  OP_PRECEDENCE.merge!(OP_PRECEDENCE.inject({}) {|m, (k, v)| m[CONSTS[k]] = v; m})
-
-  OP_ARITY = {
-    "COMMA" => -2,
-    "ASSIGN" => 2,
-    "CONDITIONAL" => 3,
-    "OR" => 2,
-    "AND" => 2,
-    "BITWISE_OR" => 2,
-    "BITWISE_XOR" => 2,
-    "BITWISE_AND" => 2,
-    "EQ" => 2, "NE" => 2, "STRICT_EQ" => 2, "STRICT_NE" => 2,
-    "LT" => 2, "LE" => 2, "GE" => 2, "GT" => 2, "IN" => 2, "INSTANCEOF" => 2,
-    "LSH" => 2, "RSH" => 2, "URSH" => 2,
-    "PLUS" => 2, "MINUS" => 2,
-    "MUL" => 2, "DIV" => 2, "MOD" => 2,
-    "DELETE" => 1, "VOID" => 1, "TYPEOF" => 1, # PRE_INCREMENT: 1, PRE_DECREMENT: 1,
-    "NOT" => 1, "BITWISE_NOT" => 1, "UNARY_PLUS" => 1, "UNARY_MINUS" => 1,
-    "INCREMENT" => 1, "DECREMENT" => 1,   # postfix
-    "NEW" => 1, "NEW_WITH_ARGS" => 2, "DOT" => 2, "INDEX" => 2, "CALL" => 2,
-    "ARRAY_INIT" => 1, "OBJECT_INIT" => 1, "GROUP" => 1
-  }
-  # Map operator type code to precedence.
-  OP_ARITY.merge!(OP_ARITY.inject({}) {|m, (k, v)| m[CONSTS[k]] = v; m})
-
-  # NB: superstring tokens (e.g., ++) must come before their substring token
-  # counterparts (+ in the example), so that the OP_REGEXP regular expression
-  # synthesized from this list makes the longest possible match.
-  OP_REGEXP = Regexp.new([';', ',', '?', ':', '||', '&&', '|', '^',
-      '&', '===', '==', '=', '!==', '!=', '<<', '<=', '<', '>>>', '>>',
-      '>=', '>', '++', '--', '+', '-', '*', '/', '%', '!', '~', '.',
-      '[', ']', '{', '}', '(', ')'].map {|op| '\A' + Regexp.escape(op)}.join("|"),
-    Regexp::MULTILINE)
-
-  # A regexp to match floating point literals (but not integer literals).
-  FP_REGEXP = /\A\d+\.\d*(?:[eE][-+]?\d+)?|\A\d+(?:\.\d*)?[eE][-+]?\d+|\A\.\d+(?:[eE][-+]?\d+)?/m
-
-  class Tokenizer
-
-    attr_accessor :cursor, :source, :tokens, :token_index, :lookahead
-    attr_accessor :scan_newlines, :scan_operand, :filename, :lineno
-
-    def initialize(source, filename, line)
-      @cursor = 0
-      @source = source.to_s
-      @tokens = []
-      @token_index = 0
-      @lookahead = 0
-      @scan_newlines = false
-      @scan_operand = true
-      @filename = filename or ""
-      @lineno = line or 1
-    end
-
-    def input
-      return @source.slice(@cursor, @source.length - @cursor)
-    end
-
-    def done
-      return self.peek == CONSTS["END"];
-    end
-
-    def token
-      return @tokens[@token_index];
-    end
-    
-    def match(tt)
-      got = self.get
-      #puts got
-      #puts tt
-      return got == tt || self.unget
-    end
-    
-    def must_match(tt)
-      raise SyntaxError.new("Missing " + TOKENS[tt].downcase, self) unless self.match(tt)
-      return self.token
-    end
-
-    def peek
-      if @lookahead > 0
-        #tt = @tokens[(@token_index + @lookahead)].type
-        tt = @tokens[(@token_index + @lookahead) & 3].type
-      else
-        tt = self.get
-        self.unget
-      end
-      return tt
-    end
-    
-    def peek_on_same_line
-      @scan_newlines = true;
-      tt = self.peek
-      @scan_newlines = false;
-      return tt
-    end
-
-    def get
-      while @lookahead > 0
-        @lookahead -= 1
-        @token_index = (@token_index + 1) & 3
-        token = @tokens[@token_index]
-        return token.type if token.type != CONSTS["NEWLINE"] || @scan_newlines
-      end
-      
-      while true
-        input = self.input
-
-        if @scan_newlines
-          match = /\A[ \t]+/.match(input)
-        else
-          match = /\A\s+/.match(input)
-        end
-        
-        if match
-          spaces = match[0]
-          @cursor += spaces.length
-          @lineno += spaces.count("\n")
-          input = self.input
-        end
-        
-        match = /\A\/(?:\*(?:.)*?\*\/|\/[^\n]*)/m.match(input)
-        break unless match
-        comment = match[0]
-        @cursor += comment.length
-        @lineno += comment.count("\n")
-      end
-      
-      #puts input
-      
-      @token_index = (@token_index + 1) & 3
-      token = @tokens[@token_index]
-      (@tokens[@token_index] = token = Token.new) unless token
-      if input.length == 0
-        #puts "end!!!"
-        return (token.type = CONSTS["END"])
-      end
-
-      cursor_advance = 0
-      if (match = FP_REGEXP.match(input))
-        token.type = CONSTS["NUMBER"]
-        token.value = match[0].to_f
-      elsif (match = /\A0[xX][\da-fA-F]+|\A0[0-7]*|\A\d+/.match(input))
-        token.type = CONSTS["NUMBER"]
-        token.value = match[0].to_i
-      elsif (match = /\A(\w|\$)+/.match(input))
-        id = match[0]
-        token.type = KEYWORDS[id] || CONSTS["IDENTIFIER"]
-        token.value = id
-      elsif (match = /\A"(?:\\.|[^"])*"|\A'(?:[^']|\\.)*'/.match(input))
-        token.type = CONSTS["STRING"]
-        token.value = match[0].to_s
-      elsif @scan_operand and (match = /\A\/((?:\\.|[^\/])+)\/([gi]*)/.match(input))
-        token.type = CONSTS["REGEXP"]
-        token.value = Regexp.new(match[1], match[2])
-      elsif (match = OP_REGEXP.match(input))
-        op = match[0]
-        if ASSIGN_OPS_HASH[op] && input[op.length, 1] == '='
-          token.type = CONSTS["ASSIGN"]
-          token.assign_op = CONSTS[OPERATOR_TYPE_NAMES[op]]
-          cursor_advance = 1 # length of '='
-        else
-          #puts CONSTS[OPERATOR_TYPE_NAMES[op]].to_s + " " + OPERATOR_TYPE_NAMES[op] + " " + op
-          token.type = CONSTS[OPERATOR_TYPE_NAMES[op]]
-          if @scan_operand and (token.type == CONSTS["PLUS"] || token.type == CONSTS["MINUS"])
-            token.type += CONSTS["UNARY_PLUS"] - CONSTS["PLUS"]
-          end
-          token.assign_op = nil
-        end
-        token.value = op
-      else
-        raise SyntaxError.new("Illegal token", self)
-      end
-
-      token.start = @cursor
-      @cursor += match[0].length + cursor_advance
-      token.end = @cursor
-      token.lineno = @lineno
-      
-      return token.type
-    end
-
-    def unget
-      #puts "start: lookahead: " + @lookahead.to_s + " token_index: " + @token_index.to_s
-      @lookahead += 1
-      raise SyntaxError.new("PANIC: too much lookahead!", self) if @lookahead == 4
-      @token_index = (@token_index - 1) & 3
-      #puts "end:   lookahead: " + @lookahead.to_s + " token_index: " + @token_index.to_s
-      return nil
-    end
-
-  end
-
   class SyntaxError
     def initialize(msg, tokenizer)
       puts msg
@@ -310,11 +9,9 @@ class Narcissus
     end
   end
 
-
   class Token
     attr_accessor :type, :value, :start, :end, :lineno, :assign_op
   end
-
 
   class CompilerContext
     attr_accessor :in_function, :stmt_stack, :fun_decls, :var_decls
@@ -332,59 +29,6 @@ class Narcissus
     end
   end
 
-
-  class Node < Array
-
-    attr_accessor :type, :value, :lineno, :start, :end, :tokenizer, :initializer
-    attr_accessor :name, :params, :fun_decls, :var_decls, :body, :function_form
-    attr_accessor :assign_op, :expression, :condition, :then_part, :else_part
-    attr_accessor :read_only, :is_loop, :setup, :postfix, :update, :exception
-    attr_accessor :object, :iterator, :var_decl, :label, :target, :try_block
-    attr_accessor :catch_clauses, :var_name, :guard, :block, :discriminant, :cases
-    attr_accessor :default_index, :case_label, :statements, :statement
-
-    def initialize(t, type = nil)
-      token = t.token
-      if token
-        if type != nil
-          @type = type
-        else
-          @type = token.type
-        end
-        @value = token.value
-        @lineno = token.lineno
-        @start = token.start
-        @end = token.end
-      else
-        @type = type
-        @lineno = t.lineno
-      end
-      @tokenizer = t
-      #for (var i = 2; i < arguments.length; i++)
-      #this.push(arguments[i]);
-    end
-
-    alias superPush push
-    # Always use push to add operands to an expression, to update start and end.
-    def push(kid)
-      if kid.start and @start
-        @start = kid.start if kid.start < @start
-      end
-      if kid.end and @end
-        @end = kid.end if @end < kid.end
-      end
-      return superPush(kid)
-    end
-
-    def getSource
-      return @tokenizer.source.slice(@start, @end)
-    end
-
-    def filename
-      return @tokenizer.filename
-    end
-  end
-
   def script(t, x)
     n = statements(t, x)
     n.type = CONSTS["SCRIPT"]
@@ -392,7 +36,6 @@ class Narcissus
     n.var_decls = x.var_decls
     return n
   end
-
 
   # Statement stack and nested statement handler.
   # nb. Narcissus allowed a function reference, here we use statement explicitly
@@ -404,7 +47,6 @@ class Narcissus
     return n
   end
 
-
   def statements(t, x)
     n = Node.new(t, CONSTS["BLOCK"])
     x.stmt_stack.push(n)
@@ -413,14 +55,12 @@ class Narcissus
     return n
   end
 
-
   def block(t, x)
     t.must_match(CONSTS["LEFT_CURLY"])
     n = statements(t, x)
     t.must_match(CONSTS["RIGHT_CURLY"])
     return n
   end
-
 
   DECLARED_FORM = 0
   EXPRESSED_FORM = 1
