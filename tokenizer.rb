@@ -1,4 +1,4 @@
-class Narcissus
+module Narcissus
   class Tokenizer
 
     attr_accessor :cursor, :source, :tokens, :token_index, :lookahead

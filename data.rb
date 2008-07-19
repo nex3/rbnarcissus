@@ -1,4 +1,4 @@
-class Narcissus
+module Narcissus
   TOKENS = [
     # End of source.
     "END",

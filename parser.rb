@@ -3,7 +3,7 @@ require 'data'
 require 'tokenizer'
 require 'node'
 
-class Narcissus
+module Narcissus
   class SyntaxError
     def initialize(msg, tokenizer)
       puts msg
@@ -31,7 +31,7 @@ class Narcissus
     end
   end
 
-  def script(t, x)
+  def self.script(t, x)
     n = statements(t, x)
     n.type = CONSTS["SCRIPT"]
     n.fun_decls = x.fun_decls
@@ -41,7 +41,7 @@ class Narcissus
 
   # Statement stack and nested statement handler.
   # nb. Narcissus allowed a function reference, here we use statement explicitly
-  def nest(t, x, node, end_ = nil)
+  def self.nest(t, x, node, end_ = nil)
     x.stmt_stack.push(node)
     n = statement(t, x)
     x.stmt_stack.pop
@@ -49,7 +49,7 @@ class Narcissus
     return n
   end
 
-  def statements(t, x)
+  def self.statements(t, x)
     n = Node.new(t, CONSTS["BLOCK"])
     x.stmt_stack.push(n)
     n.push(statement(t, x)) while !t.done and t.peek != CONSTS["RIGHT_CURLY"]
@@ -57,7 +57,7 @@ class Narcissus
     return n
   end
 
-  def block(t, x)
+  def self.block(t, x)
     t.must_match(CONSTS["LEFT_CURLY"])
     n = statements(t, x)
     t.must_match(CONSTS["RIGHT_CURLY"])
@@ -68,7 +68,7 @@ class Narcissus
   EXPRESSED_FORM = 1
   STATEMENT_FORM = 2
 
-  def statement(t, x)
+  def self.statement(t, x)
     tt = t.get
 
     # Cases for statements ending in a right curly return early, avoiding the
@@ -299,7 +299,7 @@ class Narcissus
   end
 
 
-  def function_definition (t, x, requireName, function_form)
+  def self.function_definition (t, x, requireName, function_form)
     f = Node.new(t)
     if f.type != CONSTS["FUNCTION"]
       f.type = (f.value == "get") and CONSTS["GETTER"] or CONSTS["SETTER"]
@@ -328,7 +328,7 @@ class Narcissus
   end
 
 
-  def variables(t, x)
+  def self.variables(t, x)
     n = Node.new(t)
 
     begin
@@ -347,7 +347,7 @@ class Narcissus
   end
 
 
-  def paren_expression (t, x)
+  def self.paren_expression (t, x)
     t.must_match(CONSTS["LEFT_PAREN"])
     n = expression(t, x)
     t.must_match(CONSTS["RIGHT_PAREN"])
@@ -355,7 +355,7 @@ class Narcissus
   end
 
 
-  def reduce(operators, operands, t)
+  def self.reduce(operators, operands, t)
     n = operators.pop
     op = n.type
     arity = OP_ARITY[op]
@@ -388,7 +388,7 @@ class Narcissus
   end
 
 
-  def expression(t, x, stop = nil)
+  def self.expression(t, x, stop = nil)
     operators = []
     operands = []
     bl = x.bracket_level
@@ -661,7 +661,7 @@ class Narcissus
     return operands.pop
   end
 
-  def parse(source, filename, line = 1)
+  def self.parse(source, filename, line = 1)
     t = Tokenizer.new(source, filename, line)
     x = CompilerContext.new(false)
     n = script(t, x)

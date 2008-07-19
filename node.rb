@@ -1,4 +1,4 @@
-class Narcissus
+module Narcissus
   class Node < Array
 
     attr_accessor :type, :value, :lineno, :start, :end, :tokenizer, :initializer
