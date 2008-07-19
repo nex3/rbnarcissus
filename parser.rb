@@ -137,7 +137,7 @@ class Narcissus
   OP_ARITY.merge!(OP_ARITY.inject({}) {|m, (k, v)| m[CONSTS[k]] = v; m})
 
   # NB: superstring tokens (e.g., ++) must come before their substring token
-  # counterparts (+ in the example), so that the $opRegExp regular expression
+  # counterparts (+ in the example), so that the OP_REGEXP regular expression
   # synthesized from this list makes the longest possible match.
   OP_REGEXP = Regexp.new([';', ',', '?', ':', '||', '&&', '|', '^',
       '&', '===', '==', '=', '!==', '!=', '<<', '<=', '<', '>>>', '>>',
